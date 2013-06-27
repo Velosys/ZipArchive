@@ -375,7 +375,6 @@
                         }
                         
                     }
-                    [orgDate release];
                     orgDate = nil;
                 }
                 
