@@ -347,9 +347,22 @@
                 // set the orignal datetime property
                 if( fileInfo.dosDate!=0 )
                 {
-                    NSDate* orgDate = [[NSDate alloc]
-                                       initWithTimeInterval:(NSTimeInterval)fileInfo.dosDate
-                                       sinceDate:[self Date1980] ];
+                    int year = ((fileInfo.dosDate>>25)&127) + 1980;  // 7 bits
+                    int month = (fileInfo.dosDate>>21)&15;  // 4 bits
+                    int day = (fileInfo.dosDate>>16)&31; // 5 bits
+                    int hour = (fileInfo.dosDate>>11)&31; // 5 bits
+                    int minute = (fileInfo.dosDate>>5)&63;	// 6 bits
+                    int second = (fileInfo.dosDate&31) * 2;  // 5 bits
+                    
+                    NSDateComponents *dateComps = [[NSDateComponents alloc] init];
+                    [dateComps setYear:year];
+                    [dateComps setMonth:month];
+                    [dateComps setDay:day];
+                    [dateComps setHour:hour];
+                    [dateComps setMinute:minute];
+                    [dateComps setSecond:second];
+                    NSDate *orgDate = [[NSCalendar currentCalendar] dateFromComponents:dateComps];
+                    [dateComps release];
                     
                     NSDictionary* attr = [NSDictionary dictionaryWithObject:orgDate forKey:NSFileModificationDate]; //[_fileManager fileAttributesAtPath:fullPath traverseLink:YES];
                     if( attr )
