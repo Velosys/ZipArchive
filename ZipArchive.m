@@ -119,10 +119,20 @@
 	if( attr )
 	{
 		NSDate* fileDate = (NSDate*)[attr objectForKey:NSFileModificationDate];
-		if( fileDate )
-		{
-			zipInfo.dosDate = [fileDate timeIntervalSinceDate:[self Date1980] ];
-		}
+        
+        NSUInteger components = (NSYearCalendarUnit|NSMonthCalendarUnit|NSDayCalendarUnit|NSHourCalendarUnit|NSMinuteCalendarUnit|NSSecondCalendarUnit);
+        NSDateComponents *dateComps = [[NSCalendar currentCalendar] components:components fromDate:fileDate];
+        
+        uLong year = ([dateComps year] - 1980) << 25;
+        uLong month = [dateComps month] << 21;
+        uLong day = [dateComps day] << 16;
+        uLong hour = [dateComps hour] << 11;
+        uLong minute = [dateComps minute] << 5;
+        uLong second = ([dateComps second] / 2) ;
+        
+        uLong date = year | month | day | hour | minute | second;
+        
+        zipInfo.dosDate = date;
 	}
 	
 	int ret ;
