@@ -48,7 +48,7 @@
 #if defined(USE_FILE32API)
 #define fopen64 fopen
 #define ftello64 ftell
-#define fseeko64 fseek
+#define fseeko64 fseeko
 #else
 #ifdef _MSC_VER
  #define fopen64 fopen
@@ -57,7 +57,7 @@
   #define fseeko64 _fseeki64
  #else // old MSC
   #define ftello64 ftell
-  #define fseeko64 fseek
+  #define fseeko64 fseeko
  #endif
 #endif
 #endif
