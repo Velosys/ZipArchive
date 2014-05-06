@@ -108,13 +108,15 @@
 {
 	if( !_zipFile )
 		return NO;
-//	tm_zip filetime;
+    
 	time_t current;
 	time( &current );
 	
 	zip_fileinfo zipInfo = {{0}};
 	zipInfo.dosDate = (unsigned long) current;
 	
+    unsigned long long fileSize;
+    
     NSError* error = nil;
 	NSDictionary* attr = [_fileManager _attributesOfItemAtPath:file followingSymLinks:YES error:&error];
 	if( attr )
@@ -134,8 +136,10 @@
         uLong date = year | month | day | hour | minute | second;
         
         zipInfo.dosDate = date;
+        
+        fileSize = [[attr objectForKey:NSFileSize] unsignedLongLongValue];
 	}
-	
+    
 	int ret ;
 	NSData* data = nil;
 	if( [_password length] == 0 )
@@ -151,23 +155,27 @@
 	}
 	else
 	{
-		data = [ NSData dataWithContentsOfFile:file];
+        if( fileSize > (1024 * 1024) )
+            data = [NSData dataWithContentsOfFile:file options:NSDataReadingMappedIfSafe error:nil]; // mem map files > 1 MB
+        else
+            data = [NSData dataWithContentsOfFile:file];
+        
 		uLong crcValue = crc32( 0L,NULL, 0L );
 		crcValue = crc32( crcValue, (const Bytef*)[data bytes], [data length] );
 		ret = zipOpenNewFileInZip3( _zipFile,
-								  (const char*) [newname UTF8String],
-								  &zipInfo,
-								  NULL,0,
-								  NULL,0,
-								  NULL,//comment
-								  Z_DEFLATED,
-								  Z_DEFAULT_COMPRESSION,
-								  0,
-								  15,
-								  8,
-								  Z_DEFAULT_STRATEGY,
-								  [_password cStringUsingEncoding:NSASCIIStringEncoding],
-								  crcValue );
+                                   (const char*) [newname UTF8String],
+                                   &zipInfo,
+                                   NULL,0,
+                                   NULL,0,
+                                   NULL,//comment
+                                   Z_DEFLATED,
+                                   Z_DEFAULT_COMPRESSION,
+                                   0,
+                                   15,
+                                   8,
+                                   Z_DEFAULT_STRATEGY,
+                                   [_password cStringUsingEncoding:NSASCIIStringEncoding],
+                                   crcValue );
 	}
 	if( ret!=Z_OK )
 	{
@@ -175,7 +183,10 @@
 	}
 	if( data==nil )
 	{
-		data = [ NSData dataWithContentsOfFile:file];
+        if( fileSize > (1024 * 1024) )
+            data = [NSData dataWithContentsOfFile:file options:NSDataReadingMappedIfSafe error:nil]; // mem map files > 1 MB
+        else
+            data = [NSData dataWithContentsOfFile:file];
 	}
 	unsigned int dataLen = [data length];
 	ret = zipWriteInFileInZip( _zipFile, (const void*)[data bytes], dataLen);
@@ -191,38 +202,43 @@
 
 // 2010-12-22, Michael Burford (michael@burford.net)
 // 2013-09-25, Altered by Javin Elliff to add folder names and maintain initial prefix.
+// 2014-05-06, Added autorelease pool
 // "pathPrefix" should be nil or @"" the first call; lets the recursive calls store in subfolders in the zip file.
 -(NSInteger) addFolderToZip:(NSString*)path pathPrefix:(NSString*)prefix
 {
 	NSInteger	fileCount = 0;
-	NSArray		*dirArray = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:nil];
-	
-    if( prefix == nil )
-        prefix = [path lastPathComponent];
-    else
-        prefix = [prefix stringByAppendingPathComponent:[path lastPathComponent]];
     
-    [self addFileToZip:path newname:[prefix stringByAppendingString:@"/"]];
-    
-	for (int i=0; i<[dirArray count]; i++)
-    {
-		NSString		*dirItem = [dirArray objectAtIndex:i];
-		NSDictionary	*dict = [[NSFileManager defaultManager] attributesOfItemAtPath:[path stringByAppendingPathComponent:dirItem] error:nil];
-		
-		if ([[dict fileType] isEqualToString:NSFileTypeDirectory] || [[dict fileType] isEqualToString:NSFileTypeSymbolicLink])
-		{
-			//Recursively do subfolders.
-			fileCount += [self addFolderToZip:[path stringByAppendingPathComponent:dirItem] pathPrefix:prefix];
-		}
-		else
-		{
-			//Count if added OK.
-			if ([self addFileToZip:[path stringByAppendingPathComponent:dirItem] newname:([prefix length]>0 ? [prefix stringByAppendingPathComponent:dirItem] : dirItem)])
+    @autoreleasepool {
+        NSArray		*dirArray = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:nil];
+        
+        if( prefix == nil )
+            prefix = [path lastPathComponent];
+        else
+            prefix = [prefix stringByAppendingPathComponent:[path lastPathComponent]];
+        
+        [self addFileToZip:path newname:[prefix stringByAppendingString:@"/"]];
+        
+        for (int i=0; i<[dirArray count]; i++)
+        {
+            NSString		*dirItem = [dirArray objectAtIndex:i];
+            NSDictionary	*dict = [[NSFileManager defaultManager] attributesOfItemAtPath:[path stringByAppendingPathComponent:dirItem] error:nil];
+            
+            if ([[dict fileType] isEqualToString:NSFileTypeDirectory] || [[dict fileType] isEqualToString:NSFileTypeSymbolicLink])
             {
-				fileCount++;
-			}
-		}
-	}
+                //Recursively do subfolders.
+                fileCount += [self addFolderToZip:[path stringByAppendingPathComponent:dirItem] pathPrefix:prefix];
+            }
+            else
+            {
+                //Count if added OK.
+                if ([self addFileToZip:[path stringByAppendingPathComponent:dirItem] newname:([prefix length]>0 ? [prefix stringByAppendingPathComponent:dirItem] : dirItem)])
+                {
+                    fileCount++;
+                }
+            }
+        }
+    }
+    
 	return fileCount;
 }
 
